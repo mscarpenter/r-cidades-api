@@ -3,7 +3,7 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use App\Models\CategoriaMaterial; // Importe o Model
+use App\Models\CategoriaMaterial;
 
 class CategoriaMaterialSeeder extends Seeder
 {
@@ -12,12 +12,50 @@ class CategoriaMaterialSeeder extends Seeder
      */
     public function run(): void
     {
-        // Vamos criar algumas categorias padrão
-        CategoriaMaterial::create(['nome' => 'Alvenaria', 'descricao' => 'Tijolos, blocos, cimento, argamassa.']);
-        CategoriaMaterial::create(['nome' => 'Madeiras', 'descricao' => 'Tábuas, vigas, pontaletes, paletes.']);
-        CategoriaMaterial::create(['nome' => 'Metais', 'descricao' => 'Ferragens, vergalhões, aço, alumínio.']);
-        CategoriaMaterial::create(['nome' => 'Hidráulica', 'descricao' => 'Canos, tubos, conexões, pias, vasos.']);
-        CategoriaMaterial::create(['nome' => 'Elétrica', 'descricao' => 'Fios, cabos, conduítes, tomadas.']);
-        CategoriaMaterial::create(['nome' => 'Acabamentos', 'descricao' => 'Pisos, revestimentos, tintas, portas, janelas.']);
+        $categorias = [
+            [
+                'nome' => 'Alvenaria',
+                'descricao' => 'Tijolos, blocos, cimento, areia, pedra, etc.',
+            ],
+            [
+                'nome' => 'Acabamento',
+                'descricao' => 'Pisos, azulejos, revestimentos, rejunte, argamassa, etc.',
+            ],
+            [
+                'nome' => 'Madeira',
+                'descricao' => 'Tábuas, vigas, ripas, compensados, portas, janelas, etc.',
+            ],
+            [
+                'nome' => 'Elétrica',
+                'descricao' => 'Fios, cabos, tomadas, interruptores, lâmpadas, disjuntores, etc.',
+            ],
+            [
+                'nome' => 'Hidráulica',
+                'descricao' => 'Tubos, conexões, torneiras, registros, caixas d\'água, etc.',
+            ],
+            [
+                'nome' => 'Pintura',
+                'descricao' => 'Tintas, vernizes, solventes, pincéis, rolos, lixas, etc.',
+            ],
+            [
+                'nome' => 'Telhado e Cobertura',
+                'descricao' => 'Telhas, calhas, rufos, mantas térmicas, etc.',
+            ],
+            [
+                'nome' => 'Ferramentas',
+                'descricao' => 'Ferramentas manuais e elétricas para construção.',
+            ],
+            [
+                'nome' => 'Outros',
+                'descricao' => 'Materiais diversos que não se encaixam nas outras categorias.',
+            ],
+        ];
+
+        foreach ($categorias as $categoria) {
+            CategoriaMaterial::firstOrCreate(
+                ['nome' => $categoria['nome']],
+                ['descricao' => $categoria['descricao']]
+            );
+        }
     }
 }

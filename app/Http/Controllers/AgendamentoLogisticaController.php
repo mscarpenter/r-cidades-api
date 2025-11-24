@@ -2,81 +2,109 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AgendamentoLogistica; // Importe o Model
+use App\Models\AgendamentoLogistica;
+use App\Models\Solicitacao;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class AgendamentoLogisticaController extends Controller
 {
     /**
-     * Exibe uma lista de todos os agendamentos.
+     * Listar agendamentos do usuário logado
      */
     public function index()
     {
-        $agendamentos = AgendamentoLogistica::all();
+        $userId = Auth::id();
+
+        // Busca agendamentos onde o usuário é beneficiário (via solicitação) ou doador (via anúncio da solicitação)
+        $agendamentos = AgendamentoLogistica::whereHas('solicitacao', function ($query) use ($userId) {
+            $query->where('beneficiario_id', $userId)
+                  ->orWhereHas('anuncio', function ($q) use ($userId) {
+                      $q->where('usuario_id', $userId);
+                  });
+        })
+        ->with('solicitacao.anuncio', 'solicitacao.beneficiario')
+        ->orderBy('data_agendada', 'asc')
+        ->get();
+
         return response()->json($agendamentos);
     }
 
     /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        // Não usado em APIs
-    }
-
-    /**
-     * Salva um novo agendamento no banco de dados.
+     * Criar um novo agendamento
      */
     public function store(Request $request)
     {
-        // 1. Validação dos dados
         $validatedData = $request->validate([
-            'solicitacao_id' => 'required|exists:solicitacaos,id', // Verifica se a solicitação existe
-            'data_agendada' => 'required|date', // Garante que é uma data válida
-            'transportador_id' => 'nullable|exists:users,id' // Opcional, mas se existir, deve ser um usuário válido
+            'solicitacao_id' => 'required|exists:solicitacaos,id',
+            'data_agendada' => 'required|date|after:now',
         ]);
 
-        // 2. Criação do Agendamento
+        $solicitacao = Solicitacao::findOrFail($validatedData['solicitacao_id']);
+
+        // Verifica permissão: Apenas beneficiário ou doador podem agendar
+        if ($solicitacao->beneficiario_id !== Auth::id() && $solicitacao->anuncio->usuario_id !== Auth::id()) {
+            return response()->json(['message' => 'Não autorizado.'], 403);
+        }
+
+        // Verifica status da solicitação
+        if ($solicitacao->status !== 'Aprovada') {
+            return response()->json(['message' => 'A solicitação precisa estar Aprovada para ser agendada.'], 422);
+        }
+
         $agendamento = AgendamentoLogistica::create([
-            'solicitacao_id' => $validatedData['solicitacao_id'],
-            'transportador_id' => $validatedData['transportador_id'] ?? null, // Pega o ID ou define nulo
+            'solicitacao_id' => $solicitacao->id,
             'data_agendada' => $validatedData['data_agendada'],
-            'status_logistica' => 'Agendada', // Define o padrão
+            'status_logistica' => 'Agendada',
         ]);
 
-        // 3. Resposta: Retorna o agendamento criado
         return response()->json($agendamento, 201);
     }
 
     /**
-     * Display the specified resource.
+     * Atualizar status do agendamento (Confirmar retirada/entrega)
      */
-    public function show(AgendamentoLogistica $agendamentoLogistica)
+    public function update(Request $request, AgendamentoLogistica $agendamento)
     {
-        //
-    }
+        // Carrega relacionamentos para verificação
+        $agendamento->load('solicitacao.anuncio');
+        
+        $userId = Auth::id();
+        $isBeneficiario = $agendamento->solicitacao->beneficiario_id === $userId;
+        $isDoador = $agendamento->solicitacao->anuncio->usuario_id === $userId;
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(AgendamentoLogistica $agendamentoLogistica)
-    {
-        //
-    }
+        if (!$isBeneficiario && !$isDoador) {
+            return response()->json(['message' => 'Não autorizado.'], 403);
+        }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, AgendamentoLogistica $agendamentoLogistica)
-    {
-        //
-    }
+        $validatedData = $request->validate([
+            'status_logistica' => 'sometimes|in:Agendada,Coletada,Entregue,Cancelada',
+            'confirmacao_retirada' => 'sometimes|boolean',
+            'confirmacao_entrega' => 'sometimes|boolean',
+        ]);
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(AgendamentoLogistica $agendamentoLogistica)
-    {
-        //
+        $agendamento->update($validatedData);
+
+        // Lógica de atualização de status baseada nas confirmações
+        if ($agendamento->confirmacao_retirada && $agendamento->status_logistica === 'Agendada') {
+            $agendamento->update(['status_logistica' => 'Coletada']);
+        }
+
+        if ($agendamento->confirmacao_entrega && $agendamento->status_logistica === 'Coletada') {
+            $agendamento->update(['status_logistica' => 'Entregue']);
+            
+            // Atualiza o status do anúncio para "Doado"
+            $anuncio = $agendamento->solicitacao->anuncio;
+            $anuncio->update(['status' => 'doado']);
+
+            // --- GAMIFICAÇÃO: Atribuir pontos ao doador ---
+            $doador = $anuncio->usuario;
+            $pontosBase = 10;
+            $pontosPeso = $anuncio->peso_estimado_kg ? floor($anuncio->peso_estimado_kg) : 0;
+            
+            $doador->increment('pontos', $pontosBase + $pontosPeso);
+        }
+
+        return response()->json($agendamento);
     }
 }

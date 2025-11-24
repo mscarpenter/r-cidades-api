@@ -9,9 +9,8 @@ class AgendamentoLogistica extends Model
 {
     use HasFactory;
 
-    /**
-     * Os atributos que podem ser atribuídos em massa.
-     */
+    protected $table = 'agendamento_logisticas';
+
     protected $fillable = [
         'solicitacao_id',
         'transportador_id',
@@ -21,10 +20,23 @@ class AgendamentoLogistica extends Model
         'confirmacao_entrega',
     ];
 
-    /**
-     * Define o formato da data para este modelo.
-     */
     protected $casts = [
         'data_agendada' => 'datetime',
+        'confirmacao_retirada' => 'boolean',
+        'confirmacao_entrega' => 'boolean',
     ];
+
+    /**
+     * Relacionamentos
+     */
+
+    public function solicitacao()
+    {
+        return $this->belongsTo(Solicitacao::class, 'solicitacao_id');
+    }
+
+    public function transportador()
+    {
+        return $this->belongsTo(User::class, 'transportador_id');
+    }
 }

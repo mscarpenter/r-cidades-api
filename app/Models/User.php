@@ -22,6 +22,15 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'tipo',
+        'telefone',
+        'endereco_completo',
+        'cidade',
+        'estado',
+        'cep',
+        'cpf_cnpj',
+        'avatar',
+        'pontos',
     ];
 
     /**
@@ -45,5 +54,25 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    /**
+     * Relacionamentos
+     */
+
+    /**
+     * Anúncios criados pelo usuário (como doador)
+     */
+    public function anuncios()
+    {
+        return $this->hasMany(Anuncio::class, 'usuario_id');
+    }
+
+    /**
+     * Solicitações feitas pelo usuário (como beneficiário)
+     */
+    public function solicitacoes()
+    {
+        return $this->hasMany(Solicitacao::class, 'beneficiario_id');
     }
 }

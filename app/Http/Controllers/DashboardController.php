@@ -14,30 +14,30 @@ class DashboardController extends Controller
      */
     public function index()
     {
-        // 1. Total de toneladas de material doado
-        // (Vamos assumir que 'peso_estimado_kg' está em 'anuncios'
-        //  e que 'status' == 'Doado' significa que foi concluído)
-        
-        // $totalPesoDoado = Anuncio::where('status', 'Doado')->sum('peso_estimado_kg');
-        // NOTA: Como ainda não temos o status 'Doado', vamos somar tudo por enquanto:
-        $totalPesoDoado = Anuncio::sum('peso_estimado_kg');
+        // 1. Total de toneladas de material doado (Status = 'doado')
+        $totalPesoDoado = Anuncio::where('status', 'doado')->sum('peso_estimado_kg');
 
         // 2. Total de doações/solicitações feitas
         $totalSolicitacoes = Solicitacao::count();
 
-        // 3. Total de usuários (Beneficiários/Doadores) na plataforma
+        // 3. Total de usuários
         $totalUsuarios = User::count();
 
         // 4. Total de anúncios publicados
         $totalAnuncios = Anuncio::count();
 
+        // 5. Ranking de Doadores (Top 5)
+        $ranking = User::orderBy('pontos', 'desc')
+            ->where('pontos', '>', 0)
+            ->take(5)
+            ->get(['id', 'name', 'pontos', 'avatar']);
 
-        // Retorna os dados prontos (KPIs) como JSON
         return response()->json([
             'total_peso_doado_kg' => $totalPesoDoado,
             'total_solicitacoes_feitas' => $totalSolicitacoes,
             'total_usuarios_registrados' => $totalUsuarios,
             'total_anuncios_publicados' => $totalAnuncios,
+            'ranking_doadores' => $ranking,
         ]);
     }
 }

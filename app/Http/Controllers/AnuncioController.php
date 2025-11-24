@@ -3,62 +3,87 @@
 namespace App\Http\Controllers;
 
 use App\Models\Anuncio;
+use App\Http\Requests\StoreAnuncioRequest;
+use App\Http\Requests\UpdateAnuncioRequest;
+
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 
 class AnuncioController extends Controller
 {
-    public function index()
+    /**
+     * Listar todos os anúncios disponíveis com filtros
+     */
+    public function index(Request $request)
     {
-        $anuncios = Anuncio::all(); 
+        $query = Anuncio::with('usuario', 'categoriaMaterial')
+            ->where('status', 'disponivel');
+
+        // Aplica os filtros usando os scopes do Model
+        $query->search($request->input('search'))
+              ->categoria($request->input('categoria_id'))
+              ->condicao($request->input('condicao'))
+              ->localizacao($request->input('cidade'), $request->input('estado'));
+
+        $anuncios = $query->latest()->get();
+            
         return response()->json($anuncios);
     }
 
-    public function create()
+    /**
+     * Criar um novo anúncio
+     */
+    public function store(StoreAnuncioRequest $request)
     {
-        // Não usado em APIs
-    }
+        // Os dados já vêm validados e com usuario_id do FormRequest
+        $anuncio = Anuncio::create($request->validated());
 
-    public function store(Request $request)
-    {
-        $validatedData = $request->validate([
-            'titulo' => 'required|string|max:255',
-            'descricao' => 'required|string',
-            'quantidade' => 'required|string|max:100',
-            'condicao' => 'required|string|max:100',
-        ]);
-
-        $userId = Auth::id(); 
-
-        $anuncio = Anuncio::create([
-            'usuario_id' => $userId,
-            'titulo' => $validatedData['titulo'],
-            'descricao' => $validatedData['descricao'],
-            'quantidade' => $validatedData['quantidade'],
-            'condicao' => $validatedData['condicao'],
-            'status' => 'Publicado',
-        ]);
+        // Retorna o anúncio com o relacionamento do usuário
+        $anuncio->load('usuario');
 
         return response()->json($anuncio, 201);
     }
 
+    /**
+     * Exibir um anúncio específico
+     */
     public function show(Anuncio $anuncio)
     {
+        // Carrega os relacionamentos
+        $anuncio->load('usuario', 'categoriaMaterial', 'solicitacoes.beneficiario');
+        
         return response()->json($anuncio);
     }
 
-    public function edit(Anuncio $anuncio)
+    /**
+     * Atualizar um anúncio existente
+     */
+    public function update(UpdateAnuncioRequest $request, Anuncio $anuncio)
     {
-        // Não usado em APIs
+        // A autorização já foi verificada no FormRequest
+        $anuncio->update($request->validated());
+
+        $anuncio->load('usuario', 'categoriaMaterial');
+
+        return response()->json($anuncio);
     }
 
-    public function update(Request $request, Anuncio $anuncio)
-    {
-        //
-    }
-
+    /**
+     * Remover um anúncio (soft delete via status)
+     */
     public function destroy(Anuncio $anuncio)
     {
-        //
+        // Verifica se o usuário é o dono do anúncio
+        if ($anuncio->usuario_id !== auth()->id()) {
+            return response()->json([
+                'message' => 'Você não tem permissão para excluir este anúncio.'
+            ], 403);
+        }
+
+        // Ao invés de deletar, muda o status para cancelado
+        $anuncio->update(['status' => 'cancelado']);
+
+        return response()->json([
+            'message' => 'Anúncio cancelado com sucesso.'
+        ]);
     }
 }
